@@ -1,6 +1,14 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import {
+  browserLocalPersistence,
+  getRedirectResult,
+  GoogleAuthProvider,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+  type AuthError,
+} from "firebase/auth"
 import { auth } from "../lib/firebase"
 import { useAuthStore, randomColor, randomId } from "../store/authStore"
 
@@ -9,6 +17,26 @@ export default function LoginPage() {
   const setUser = useAuthStore((s) => s.setUser)
   const [name, setName] = useState("")
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    // Complete redirect-based sign in flow when popup is blocked by browser.
+    getRedirectResult(auth)
+      .then((result) => {
+        const u = result?.user
+        if (!u) return
+        setUser({
+          uid: u.uid,
+          displayName: u.displayName || "User",
+          color: randomColor(),
+          provider: "google",
+        })
+        router.replace("/dashboard")
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "Google sign-in failed"
+        setError(message)
+      })
+  }, [router, setUser])
 
   function handleGuest() {
     const trimmed = name.trim()
@@ -27,7 +55,10 @@ export default function LoginPage() {
 
   async function handleGoogle() {
     try {
+      setError("")
       const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: "select_account" })
+      await setPersistence(auth, browserLocalPersistence)
       const result = await signInWithPopup(auth, provider)
       const u = result.user
       setUser({
@@ -38,6 +69,28 @@ export default function LoginPage() {
       })
       router.push("/dashboard")
     } catch (err: unknown) {
+      const authErr = err as Partial<AuthError> | undefined
+      const code = authErr?.code || ""
+
+      if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
+        const provider = new GoogleAuthProvider()
+        provider.setCustomParameters({ prompt: "select_account" })
+        await signInWithRedirect(auth, provider)
+        return
+      }
+
+      if (code === "auth/unauthorized-domain") {
+        setError(
+          "This domain is not authorized in Firebase Auth. Add your Render domain in Firebase Console -> Authentication -> Settings -> Authorized domains."
+        )
+        return
+      }
+
+      if (code === "auth/operation-not-allowed") {
+        setError("Google provider is disabled in Firebase Authentication. Enable Google sign-in in the Firebase console.")
+        return
+      }
+
       const message = err instanceof Error ? err.message : "Google sign-in failed"
       setError(message)
     }
