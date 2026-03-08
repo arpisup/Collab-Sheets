@@ -118,8 +118,3 @@ If this is not configured, Google login will fail with domain/provider errors.
 - `npm run dev` - start dev server
 - `npm run build` - create production build
 - `npm start` - start production server (`server.js`)
-
-## Notes
-
-- `.env.local` is ignored by git and should never be committed.
-- `.next/` is build output and should not be committed.
