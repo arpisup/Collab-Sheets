@@ -27,7 +27,6 @@ A real-time collaborative spreadsheet app built with Next.js, React, Socket.IO, 
 - MathJS (formula evaluation)
 
 ## Project Structure
-
 ```text
 components/
   Dashboard/
